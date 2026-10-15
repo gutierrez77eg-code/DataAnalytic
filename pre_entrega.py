@@ -4,9 +4,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 df_ventas = pd.read_csv("ventas.csv")
 df_marketing = pd.read_csv("Marketing.csv")
-
+df_ventas_1= pd.read_excel("ventas1.xlsx")
 
 #print(df_ventas.head())
 #print(df_ventas.info())
@@ -20,7 +21,7 @@ df_marketing = pd.read_csv("Marketing.csv")
     #El dataset contiene 954 registros y la variable Importe presenta 40 valores non-null.
 #print(df_ventas["Importe"].head(20)) #Revisamos como estan cargados los importes
 
-df_ventas_job = df_ventas
+df_ventas_job = df_ventas.copy()
 df_ventas_job["Importe"] = (df_ventas_job["Importe"].str.replace("$","",regex=False).astype(float))
 df_ventas_job['Importe'] = pd.to_numeric(df_ventas_job['Importe'],errors='coerce')
 
@@ -104,12 +105,26 @@ vent = [
      "cantidad":2
     }
 ]
+for venta in vent:
+    venta["subtotal"]= venta["precio"] * venta["cantidad"]
+total_por_venta=sum(
+    venta["subtotal"] for venta in vent
+    )
 
 #for venta in vent:
 #    print(venta['producto'])
 #    print(venta['cantidad'])
 #    print(venta['precio'])
 #    print("-----------------")
+
+#print("Detalle de ventas:")
+#for venta in vent:
+#    print(
+#        venta["producto"],
+#        "Cantidad:", venta["cantidad"],
+#        "Subtotal;", venta["subtotal"]
+#    )
+#print("Total de la venta:", total_por_venta)
 
 resumen_productos = df_ventas_job.groupby("Producto")["Importe"].sum()
 resumen_productos = resumen_productos.sort_values(ascending=False)
@@ -151,19 +166,87 @@ tablas_resumen["Porcentaje"]=(
 #print("\n Productos de marketing:")
 #print(df_marketing["producto"].unique())
 
-df_marketing_job = df_marketing
+df_marketing_job = df_marketing.copy()
 df_marketing_job["fecha_inicio"]=pd.to_datetime(
     df_marketing_job["fecha_inicio"],
-    dayfirst=True
+    dayfirst=True,
+    errors="coerce"
 )
+df_marketing_job["fecha_fin"]=pd.to_datetime(
+    df_marketing_job["fecha_fin"],
+    dayfirst=True,
+    errors="coerce"
+)
+
+df_marketing_job["producto"]=(
+    df_marketing_job["producto"]
+    .astype("string")
+    .str.strip()
+    .str.lower()
+)
+
 df_integrado=pd.merge(
     df_ventas_job,
     df_marketing_job,
     how="cross"
 )
+
 df_integrado=df_integrado[
     (df_integrado["Fecha"]>= df_integrado["fecha_inicio"])&
     (df_integrado["Fecha"]<= df_integrado["fecha_fin"])
 ]
-print("Datos integrados:")
-print(df_integrado.head(5))
+#print("Datos integrados:")
+#print(df_integrado.head(20))
+
+
+#-------------------------------
+#       etapa 2 eliminar filas documentadas
+filas_iniciales= len(df_ventas)
+df_ventas_job_2 = df_ventas.drop_duplicates()
+duplicados_eliminado=filas_iniciales - len(df_ventas_job_2)
+#print(f'Filas duplicadas eliminadas: {duplicados_eliminado}')
+
+df_ventas_job_2['Importe']=(
+    df_ventas_job_2['Importe']
+    .str.replace('$','',regex=False)
+    .str.replace(',','')
+    .str.strip()
+    .astype(float)
+)
+#print(df_ventas_job_2)
+
+#------------2.2----------------------
+
+Procucto_Mdv =(
+    df_ventas_job_2
+    .groupby("Producto")["Importe"]
+    .max()
+    .reset_index()
+    .sort_values("Importe", ascending=False)
+) 
+#print(Procucto_Mdv)
+promediio_gral= df_ventas_job_2['Importe'].mean()
+#print(f'El promediio_gral es ::{promediio_gral}')
+
+tabla_rendimiento = df_ventas_job_2[df_ventas_job_2['Importe']>=promediio_gral]
+tabla_rendimiento = tabla_rendimiento.sort_values(by='Importe', ascending=False)
+#print(tabla_rendimiento)
+
+
+#------2.3--------------------------
+
+df_venta_excel= df_ventas_1.copy()
+
+df_venta_excel['Ventas']= (
+     df_venta_excel['Ventas']
+    .str.replace('$','',regex=False)
+    .str.strip()
+    .astype(float)
+    )
+resumen_por_cat= (df_venta_excel.groupby('Producto').agg(
+    Ventas_total=('Ventas','sum')
+)
+.reset_index())
+
+print(resumen_por_cat)
+ 
